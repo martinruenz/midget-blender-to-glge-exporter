@@ -14,6 +14,12 @@ midget Blender to glge exporter
 	Use
 	------------
 	
-		1. GLGE does only support faces with three edges. Use Ctrl + T to convert your meshes' faces to triangles.
-		2. save: save your blender file (otherwise recently changes will not effect your exported data)
-		3. export: File -> Export -> GLGE Exporter
+		1. save: save your blender file (otherwise recently changes will not effect your exported data)
+		2. export: File -> Export -> GLGE Exporter
+		
+	Changelog
+	-------------
+		0.1c
+			- You don't have to triangulate your scene anymore. This work is done by the exporter.
+			- Bugfix: Now the exporter ensures, that texture ids and material ids are diffrent
+			- Bugfix: Correct rotation of camera and objects.

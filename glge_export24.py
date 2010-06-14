@@ -1,7 +1,7 @@
 #!BPY
 # coding: utf-8
 # Todos: complete scene, complete materials, lights, (replace copy image)
-# Date: 21.05.2010
+# Date: 14.06.2010
 """
 Name: 'GLGE Exporter (.xml)'
 Blender: 244
@@ -10,7 +10,7 @@ Tooltip: 'Export to GLGE's scene format'
 """
 __author__ = "Martin Rünz seamonkey@uni-koblenz.de (idea: objectexport.py)"
 __url__ = ["University of Koblenz, http://www.uni-koblenz.de/", "GLGE, http://www.glge.org"]
-__version__ = "0.1b"
+__version__ = "0.1c"
 __bpydoc__ = """\
 Description:
 This script exports all meshes into the glge scene format.
@@ -92,7 +92,7 @@ class Scene_Object:
 	
 	# get xml output
 	def to_xml(self):
-		output = "<object id=\"%s\" mesh=\"#%s\" loc_x=\"%f\" loc_y=\"%f\" loc_z=\"%f\" rot_x=\"%f\" rot_y=\"%f\" rot_z=\"%f\" scale_x=\"%f\" scale_y=\"%f\" scale_z=\"%f\"" % (self.id, self.mesh, self.locx, self.locy, self.locz, self.rotx, self.roty, self.rotz, self.scalex, self.scaley, self.scalez)
+		output = "<object id=\"%s\" mesh=\"#%s\" loc_x=\"%f\" loc_y=\"%f\" loc_z=\"%f\" rot_order=\"ROT_XZY\" rot_x=\"%f\" rot_y=\"%f\" rot_z=\"%f\" scale_x=\"%f\" scale_y=\"%f\" scale_z=\"%f\"" % (self.id, self.mesh, self.locx, self.locy, self.locz, self.rotx, self.roty, self.rotz, self.scalex, self.scaley, self.scalez)
 		if self.material != None:
 			output += " material=\"#"+self.material+"\""
 		output += " />"
@@ -100,10 +100,9 @@ class Scene_Object:
 
 class Scene_Camera:
 	def __init__(self, id, locx="0", locy="0", locz="0", rotx="0", roty="0", rotz="0", rotorder="ROT_XZY"):
-		# XYZ ?
 		self.rotx = rotx
-		self.roty = roty
-		self.rotz = rotz
+		self.roty = rotz
+		self.rotz = -roty
 		self.locx = locx
 		self.locy = locy
 		self.locz = locz
@@ -152,42 +151,32 @@ class GLGE_Exporter:
 		# start writing
 		self.out.write("\t<mesh id=\""+mesh.name+"\">\n")
 		
-		# collect output (go thru all the faces)
+		# collect output (go through all the faces)
 		mesh_faces = mesh.faces
+		uv_enabled = False
 		for face in mesh_faces:
-			coordinates=coordinates + "%f,%f,%f," % (face.v[0].co[0],face.v[0].co[1],face.v[0].co[2])
-			coordinates=coordinates + "%f,%f,%f," % (face.v[1].co[0],face.v[1].co[1],face.v[1].co[2])
-			coordinates=coordinates + "%f,%f,%f," % (face.v[2].co[0],face.v[2].co[1],face.v[2].co[2])
-			normals=normals + "%f,%f,%f," % (face.v[0].no[0],face.v[0].no[1],face.v[0].no[2])
-			normals=normals + "%f,%f,%f," % (face.v[1].no[0],face.v[1].no[1],face.v[1].no[2])
-			normals=normals + "%f,%f,%f," % (face.v[2].no[0],face.v[2].no[1],face.v[2].no[2])
-			try:
-				uv=uv + "%f,%f," % (face.uv[0][0],face.uv[0][1])
-				uv=uv + "%f,%f," % (face.uv[1][0],face.uv[1][1])
-				uv=uv + "%f,%f," % (face.uv[2][0],face.uv[2][1])
-			except ValueError:
-				uv_enabled = False
-				
-			#weights
-			#for weight in weights:
-			#	we[weight]=we[weight]+"%f,%f,%f," % (weights[weight][face.v[0].index],weights[weight][face.v[1].index],weights[weight][face.v[2].index])
-					   
-			faces=faces + "%i,%i,%i," % (face_counter,face_counter+1,face_counter+2)
-			face_counter=face_counter+3;
-			
-		# write mesh to file
+			for i in range(len(face.v)):
+				coordinates += "%f,%f,%f," % (face.v[i].co[0],face.v[i].co[1],face.v[i].co[2])
+				normals += "%f,%f,%f," % (face.v[i].no[0],face.v[i].no[1],face.v[i].no[2])
+				try:
+					if len(face.uv)>0:
+						uv += "%f,%f," % (face.uv[i][0],face.uv[i][1])
+						uv_enabled=True
+				except ValueError:
+					uv_enabled = False
+			if len(face.v) < 4:
+				faces += "%i,%i,%i," % (face_counter,face_counter+1,face_counter+2)
+			else:
+				for j in range(len(face.v)-2):
+					faces += "%i,%i,%i," % (face_counter,face_counter+1+j,face_counter+2+j)
+			face_counter=face_counter+len(face.v)
 		
 		self.out.write("\t\t<positions>"+coordinates[:-1]+"</positions>\n")
 		self.out.write("\t\t<normals>"+normals[:-1]+"</normals>\n")
 		if uv_enabled:
 			self.out.write("\t\t<uv1>"+uv[:-1]+"</uv1>\n")
 		self.out.write("\t\t<faces>"+faces[:-1]+"</faces>\n")
-		
-		# for weight in weights:
-			# output=output+'<weights channel="'+weight+'">'
-			# output=output+we[weight][:len(we[weight])-1]
-			# output=output+'</weights>\n'
-			
+
 		# end writing
 		self.out.write("\t</mesh>\n")
 
@@ -205,18 +194,22 @@ class GLGE_Exporter:
 		for texture in material.getTextures():
 			if texture == None:
 				break
-			self.export_texture(texture.tex)
+			self.export_texture(texture.tex, material)
 		self.out.write("\t</material>\n")
 	
 	# export some texture (todo)
-	def export_texture(self, texture):
+	def export_texture(self, texture, material):
 		image = texture.getImage()
 			
 		image_path = sys.expandpath(image.filename)
 		dest_path = self.texture_dir + image_path.split('\\')[-1].split('/')[-1]
 		
-		self.out.write("\t\t<texture id=\""+ texture.getName() +"\" src=\"images"+os.sep+os.path.basename(image.getFilename())+"\" />\n")
-		self.out.write("\t\t<material_layer texture=\"#"+ texture.getName() +"\" mapinput=\"UV1\" mapto=\"M_COLOR\" />\n")
+		texture_id = texture.getName()
+		if material.getName() == texture_id:
+			texture_id += "Texture"
+		
+		self.out.write("\t\t<texture id=\""+ texture_id +"\" src=\"images"+os.sep+os.path.basename(image.getFilename())+"\" />\n")
+		self.out.write("\t\t<material_layer texture=\"#"+ texture_id +"\" mapinput=\"UV1\" mapto=\"M_COLOR\" />\n")
 		
 		if sys.exists(image_path) and not sys.exists(dest_path):
 			copy_file(image_path, dest_path)
